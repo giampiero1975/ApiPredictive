@@ -1,7 +1,8 @@
 .buildpath
 .project
-.settings/*
-scarico/*
+.settings/
 phpinfo.php
 
-!scarico/.gitkeep # Se vuoi mantenere la cartella 'scarico/' vuota
+# Regole per la cartella scarico/
+scarico/* # Ignora tutti i file e le sottocartelle DENTRO 'scarico/'
+!scarico/.gitkeep   # MA NON ignorare il file .gitkeep

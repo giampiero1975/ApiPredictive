@@ -1,0 +1,6 @@
+api/
+  controllers/
+    UserController.php
+  config/
+    database.php
+  index.php

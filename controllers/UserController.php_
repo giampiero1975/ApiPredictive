@@ -1,0 +1,239 @@
+<?php
+
+class UserController
+{
+
+    private $dbMysql;
+
+    private $dbMSSQL;
+
+    public function __construct()
+    {
+        try {
+            $options = array(
+                PDO::ATTR_PERSISTENT => true,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => true
+            );
+
+            // Connessione a MySQL - Centralino
+            $this->dbMysql = new PDO("mysql:host=192.168.10.122;dbname=tapi_it", "tapi_it", "9Gc87nGuHq7M", $options);
+            
+            $this->dbMysqlAT = new PDO("mysql:host=192.168.12.122;dbname=tapi_at", "tapi_at", "9Gc87nGuHq7M", $options);
+            
+            $this->dbMysqlFR = new PDO("mysql:host=192.168.12.250;dbname=tapi_fr", "tapi_fr", "9Gc87nGuHq7M", $options);
+
+            $this->dbMysqlES = new PDO("mysql:host=192.168.10.250;dbname=tapi_es", "tapi_es", "9Gc87nGuHq7M", $options);
+            
+            // Connessione a MSSQL - Synthesys
+            #$this->dbMSSQL = new PDO("sqlsrv:Server=192.168.10.43;Database=Synthesys_General", "sa", "c4p1t4n.bl4tt4");
+            $this->dbMSSQL = new PDO("dblib:host=192.168.10.43;dbname=Synthesys_General", "sa", "c4p1t4n.bl4tt4", $options);
+        } catch (Exception $e) {
+            echo "<br>Connessione non riuscita: " . $e->getMessage();
+        }
+    }
+
+    public function getServices()
+    {
+        $this->count =0;
+        # echo "<br>getServices";
+        try {
+            $sql = "SELECT * from v_progetti";
+            #echo $sql;
+            $stmt = $this->dbMSSQL->query($sql);
+            $progetti = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            #print_r($progetti);
+            echo "<pre>";
+            $arr = [
+                'DemonstrationandTrainingScripts',
+                'Telebusiness Callflows',
+                'Noetica',
+                'Noetica Training',
+                'AVAYA',
+                'PPHISC',
+                'test',
+                'Test01',
+                'Test02',
+				'Villeroy & Boch',
+                'Villeroy Boch'
+
+            ];
+            $sql = null;
+            # $sql_sa = null;
+            echo "<br>";
+            $cint=0;
+            foreach ($progetti as $value) {
+
+                if(array_search($value['account_name'], $arr)){
+                    # echo "<br> >> ".$value['account_name'] ." da scartare";
+                    continue;
+                }
+                
+                $sql_sa = null;
+                // Verifico che esista la main prima di effettuare la query, se non esiste continuo
+                $sql_main = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE table_name LIKE '" . $value['tab_main'] . "'";
+                #echo "<br>Main :".$sql_main."<br>";
+                echo "<br>".$value['account_name'];
+                
+                $smtp_main = $this->dbMSSQL->query($sql_main);
+                $result_main = $smtp_main->fetchAll(PDO::FETCH_ASSOC);
+                #print_r($result_main);
+
+                # if (empty($result_main))
+                if (count($result_main) == 0 || empty($result_main))
+                    continue;
+                
+                #$sql_sa .= "SELECT convert(varchar, Phoenix.dbo.Phoenix_Statistics.EventTime, 120) AS 'data inizio'," . " CONCAT('SA_','" . $value['account_name'] . "','_'," . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue) as rispostacc, " . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue as 'descrtipochiamata', " . "sum(convert(int,Phoenix.dbo.Phoenix_Statistics.duration)) as 'durata', " . "Phoenix.dbo.Phoenix_Statistics.Operator_name as 'name'" . "FROM " . $value['tab_main'] . " JOIN Phoenix.dbo.Phoenix_Statistics ON Phoenix.dbo.Phoenix_Statistics.Sequence_ID = " . $value['tab_main'] . ".Sequence_ID " . "where CONVERT (date, Phoenix.dbo.Phoenix_Statistics.EventTime) >= DATEADD(MONTH, -12, CONVERT (date, GETDATE())) " . " AND Phoenix.dbo.Phoenix_Statistics.result NOT IN ('Training','Application Closed','Disconnection') " . "AND " . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue not IN  ('chiamata','',null)"
+				$sql_sa .= "SELECT convert(varchar, Phoenix.dbo.Phoenix_Statistics.EventTime, 120) AS 'data inizio'," . " CONCAT('SA_','" . $value['account_name'] . "','_'," . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue) as rispostacc, " . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue as 'descrtipochiamata', " . "sum(convert(int,Phoenix.dbo.Phoenix_Statistics.duration)) as 'durata', " . "Phoenix.dbo.Phoenix_Statistics.Operator_name as 'name'" . "FROM " . $value['tab_main'] . " JOIN Phoenix.dbo.Phoenix_Statistics ON Phoenix.dbo.Phoenix_Statistics.Sequence_ID = " . $value['tab_main'] . ".Sequence_ID " . "where CONVERT (date, Phoenix.dbo.Phoenix_Statistics.EventTime) >= DATEADD(MONTH, -12, CONVERT (date, GETDATE())) " . " AND Phoenix.dbo.Phoenix_Statistics.result NOT IN ('Training','Application Closed','Disconnection') " . "AND " . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue not IN  ('Chiamata')"
+                    ." GROUP BY "
+                    ." convert(varchar, Phoenix.dbo.Phoenix_Statistics.EventTime, 120), "
+                    ." CONCAT('SA_','" . $value['account_name'] . "','_'," . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue) , "
+                    . $value['tab_main'] . ".Tipo_TipoContatto_SelectedValue, "
+                    ." Phoenix.dbo.Phoenix_Statistics.Operator_name";
+                
+                #echo "<br>".$sql_sa."<br>";
+                #die();
+                #echo $value['account_name']."<br>";
+                $smtp_sa = $this->dbMSSQL->query($sql_sa);
+                $result_sa = $smtp_sa->fetchAll(PDO::FETCH_ASSOC);
+				#echo "<br>count: ".count($result_sa);
+				if(count($result_sa)=='0'){
+					continue;
+				}else{
+				    $cint++;
+				    #echo "<br>cint: ".$cint;
+				    
+				    if($cint==1)
+				        $int=true;
+				    else
+				        $int=false;
+				    
+                # print_r($result_sa);				    
+				        $this->exportToCsv('scarico_annuale_SA.csv', $result_sa, $int);
+				}
+            }
+            #echo $sql_sa;
+            #die();
+
+            return true;
+        } catch (Exception $e) {
+            echo "Errore recuperando i dati da synthesys: " . $e->getMessage();
+        }
+    }
+
+    public function getSwitchboard()
+    {
+        $this->count = 0;
+        # echo "<br>getSwitchboard";
+        try {
+            $sql_cc = "SELECT " . "`c`.`created_at` AS `data inizio`, " . "CONCAT(\"CC_\",`q`.`name`) AS `rispostacc`, " . "if(`c`.`state` = 'QUEUEING' AND `c`.`agent_id` IS NULL,'Lost','Incoming Answered') AS `descrtipochiamata`, " . "FLOOR((`c`.`duration` - if(`c`.`queueing_time` IS NOT NULL, FLOOR(`c`.`queueing_time`),0) - if(`c`.`ringing_time` IS NOT NULL, FLOOR(`c`.`ringing_time`),0)) / 1000) AS `durata`, " . "`a`.`name` AS `name` " . "FROM ((`calls_history` `c` JOIN `queues` `q` ON(`c`.`queue_id` = `q`.`id`)) " . "LEFT JOIN `agents` `a` ON(`c`.`agent_id` = `a`.`id`)) " . "WHERE `c`.`subscription_type` = 'QUEUE' AND `c`.`created_at` >=  date(NOW())- interval 13 month AND `c`.`direction` = 'INBOUND' AND `c`.`original_agent_id` IS NULL AND `c`.`retargeting_time` IS NULL AND `c`.`state` in ('CONNECTED','ONHOLD','RETARGETING','ANSWEREDBYVOICEMAIL','RINGING','QUEUEING') AND (DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sun' AND DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '08:30:00' AND '20:30:00' AND DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sat' OR DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '09:00:00' AND '18:00:00' AND DATE_FORMAT(`c`.`created_at`,'%a') = 'Sat') " . "ORDER BY `c`.`created_at`";
+            # echo "<br>". $sql_cc;
+            # die();
+            $stmt_cc = $this->dbMysql->query($sql_cc);
+            return $stmt_cc->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            echo "Errore recuperando i dati centralino: " . $e->getMessage();
+        }
+    }
+    
+    public function getSwitchboardAT()
+    {
+        $this->count = 0;
+        # echo "<br>getSwitchboard";
+        try {
+            $sql_cc = "SELECT " . "`c`.`created_at` AS `data inizio`, " . "CONCAT(\"CC_\",`q`.`name`) AS `rispostacc`, " . "if(`c`.`state` = 'QUEUEING' AND `c`.`agent_id` IS NULL,'Lost','Incoming Answered') AS `descrtipochiamata`, " . "FLOOR((`c`.`duration` - if(`c`.`queueing_time` IS NOT NULL, FLOOR(`c`.`queueing_time`),0) - if(`c`.`ringing_time` IS NOT NULL, FLOOR(`c`.`ringing_time`),0)) / 1000) AS `durata`, " . "`a`.`name` AS `name` " . "FROM ((`calls_history` `c` JOIN `queues` `q` ON(`c`.`queue_id` = `q`.`id`)) " . "LEFT JOIN `agents` `a` ON(`c`.`agent_id` = `a`.`id`)) " . "WHERE `c`.`subscription_type` = 'QUEUE' AND `c`.`created_at` >=  date(NOW())- interval 13 month AND `c`.`direction` = 'INBOUND' AND `c`.`original_agent_id` IS NULL AND `c`.`retargeting_time` IS NULL AND `c`.`state` in ('CONNECTED','ONHOLD','RETARGETING','ANSWEREDBYVOICEMAIL','RINGING','QUEUEING') AND (DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sun' AND DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '08:30:00' AND '20:30:00' AND DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sat' OR DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '09:00:00' AND '18:00:00' AND DATE_FORMAT(`c`.`created_at`,'%a') = 'Sat') " . "ORDER BY `c`.`created_at`";
+            # echo "<br>". $sql_cc;
+            # die();
+            $stmt_cc = $this->dbMysqlAT->query($sql_cc);
+            return $stmt_cc->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            echo "Errore recuperando i dati centralino: " . $e->getMessage();
+        }
+    }
+
+    public function getSwitchboardES()
+    {
+        $this->count = 0;
+        # echo "<br>getSwitchboard";
+        try {
+            $sql_cc = "SELECT " . "`c`.`created_at` AS `data inizio`, " . "CONCAT(\"CC_\",`q`.`name`) AS `rispostacc`, " . "if(`c`.`state` = 'QUEUEING' AND `c`.`agent_id` IS NULL,'Lost','Incoming Answered') AS `descrtipochiamata`, " . "FLOOR((`c`.`duration` - if(`c`.`queueing_time` IS NOT NULL, FLOOR(`c`.`queueing_time`),0) - if(`c`.`ringing_time` IS NOT NULL, FLOOR(`c`.`ringing_time`),0)) / 1000) AS `durata`, " . "`a`.`name` AS `name` " . "FROM ((`calls_history` `c` JOIN `queues` `q` ON(`c`.`queue_id` = `q`.`id`)) " . "LEFT JOIN `agents` `a` ON(`c`.`agent_id` = `a`.`id`)) " . "WHERE `c`.`subscription_type` = 'QUEUE' AND `c`.`created_at` >=  date(NOW())- interval 13 month AND `c`.`direction` = 'INBOUND' AND `c`.`original_agent_id` IS NULL AND `c`.`retargeting_time` IS NULL AND `c`.`state` in ('CONNECTED','ONHOLD','RETARGETING','ANSWEREDBYVOICEMAIL','RINGING','QUEUEING') AND (DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sun' AND DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '08:30:00' AND '20:30:00' AND DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sat' OR DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '09:00:00' AND '18:00:00' AND DATE_FORMAT(`c`.`created_at`,'%a') = 'Sat') " . "ORDER BY `c`.`created_at`";
+            # echo "<br>". $sql_cc;
+            # die();
+            $stmt_cc = $this->dbMysqlES->query($sql_cc);
+            return $stmt_cc->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            echo "Errore recuperando i dati centralino: " . $e->getMessage();
+        }
+    }
+    
+    public function getSwitchboardFR()
+    {
+        $this->count = 0;
+        # echo "<br>getSwitchboard";
+        try {
+            $sql_cc = "SELECT " . "`c`.`created_at` AS `data inizio`, " . "CONCAT(\"CC_\",`q`.`name`) AS `rispostacc`, " . "if(`c`.`state` = 'QUEUEING' AND `c`.`agent_id` IS NULL,'Lost','Incoming Answered') AS `descrtipochiamata`, " . "FLOOR((`c`.`duration` - if(`c`.`queueing_time` IS NOT NULL, FLOOR(`c`.`queueing_time`),0) - if(`c`.`ringing_time` IS NOT NULL, FLOOR(`c`.`ringing_time`),0)) / 1000) AS `durata`, " . "`a`.`name` AS `name` " . "FROM ((`calls_history` `c` JOIN `queues` `q` ON(`c`.`queue_id` = `q`.`id`)) " . "LEFT JOIN `agents` `a` ON(`c`.`agent_id` = `a`.`id`)) " . "WHERE `c`.`subscription_type` = 'QUEUE' AND `c`.`created_at` >=  date(NOW())- interval 13 month AND `c`.`direction` = 'INBOUND' AND `c`.`original_agent_id` IS NULL AND `c`.`retargeting_time` IS NULL AND `c`.`state` in ('CONNECTED','ONHOLD','RETARGETING','ANSWEREDBYVOICEMAIL','RINGING','QUEUEING') AND (DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sun' AND DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '08:30:00' AND '20:30:00' AND DATE_FORMAT(`c`.`created_at`,'%a') <> 'Sat' OR DATE_FORMAT(`c`.`created_at`,'%H:%i:%s') BETWEEN '09:00:00' AND '18:00:00' AND DATE_FORMAT(`c`.`created_at`,'%a') = 'Sat') " . "ORDER BY `c`.`created_at`";
+            # echo "<br>". $sql_cc;
+            # die();
+            $stmt_cc = $this->dbMysqlFR->query($sql_cc);
+            return $stmt_cc->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            echo "Errore recuperando i dati centralino: " . $e->getMessage();
+        }
+    }
+    
+    public function exportServerCsv($fileToTransfer)
+    {
+        try {
+            require_once 'config/curlftp.php';
+
+            # echo "<br>exportCvs";
+
+            $ftp = new Curlftp(array(
+                'host' => '192.168.10.56',
+                'user' => 'giampiero.digregorio',
+                'password' => '20$met41'
+            ));
+            $path = "/MeTMi/Pianificazione/Occupancy/AI/";
+
+            # trasferisco i csv di scarico sul document server
+            $ftp->upload_file($fileToTransfer, $path);
+        } catch (Exception $e) {
+            echo "Errore trasferimento [$fileToTransfer] csv: " . $e->getMessage();
+        }
+    }
+
+    public function exportToCsv($filename, $data, $int=null)
+    {		
+        $this->count ++;
+        # echo "<br>exportToCsv: " . $filename;
+        try {
+            // Apri il file CSV in modalità scrittura
+            $file = fopen("scarico/" . $filename, 'a+');
+
+            // Scrivi l'intestazione del CSV (nomi delle colonne)
+            if ($int ==true )
+                fputcsv($file, array_keys($data[0]));
+
+            if (is_array($data)) {
+                // Scrivi i dati nel file CSV
+                foreach ($data as $row) {
+                    fputcsv($file, $row);
+                }
+            }
+            // Chiudi il file
+            fclose($file);
+            # echo "<br>".$this->count;
+            return true;
+        } catch (Exception $e) {
+            echo "Errore salvando il file $filename: " . $e->getMessage();
+        }
+    }
+
+    public function exportToJSON($filename, $data)
+    {
+        // Scrivi i dati in un file JSON
+        file_put_contents($filename, json_encode($data));
+    }
+    # \\192.168.10.56\MeTMi\Pianificazione\Occupancy
+}
